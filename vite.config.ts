@@ -9,7 +9,7 @@ export default defineConfig({
     open: true, // 起動時にブラウザを開く
   },
   build: {
-    outDir: 'build', // CRAと同じ出力ディレクトリを使用
+    outDir: 'dist', // Amplifyが期待する出力ディレクトリ
     sourcemap: true
   }
 })
