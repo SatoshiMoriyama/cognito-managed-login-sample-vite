@@ -84,6 +84,10 @@ function App() {
 
   async function createTodo() {
     client.models.Todo.create({ content: window.prompt("Todo content") })
+
+    client.queries.sayHello({
+      name: "Amplify",
+    })
   }
 
   // 認証状態をチェックする
