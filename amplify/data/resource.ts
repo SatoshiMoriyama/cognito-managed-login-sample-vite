@@ -1,4 +1,6 @@
 import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
+import { sayHello } from "../functions/say-hello/resource"
+
 
 /*== STEP 1 ===============================================================
 The section below creates database tables with authorization rules.
@@ -11,6 +13,15 @@ const schema = a.schema({
       content: a.string(),
     })
     .authorization((allow) => [allow.authenticated()]), // 認証済みユーザーのみアクセス許可
+   
+  sayHello: a
+    .query()
+    .arguments({
+      name: a.string(),
+    })
+    .returns(a.string())
+    .authorization(allow => [allow.authenticated()])
+    .handler(a.handler.function(sayHello)),   
   });
 
 export type Schema = ClientSchema<typeof schema>;
