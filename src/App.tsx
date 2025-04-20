@@ -31,6 +31,11 @@ import CreateUser from './CreateUser';
 // 管理者判定ヘルパーのインポート
 import { isAdmin, User, UserAttributes } from './isAdmin';
 
+import type { Schema } from "../amplify/data/resource";
+import { generateClient } from "aws-amplify/data";
+
+const client = generateClient<Schema>();
+
 // カスタムテーマの作成
 const theme = createTheme({
   palette: {
@@ -71,9 +76,25 @@ function App() {
   const [showToken, setShowToken] = useState<boolean>(false);
   const [isUserAdmin, setIsUserAdmin] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<number>(0);
+  const [todos, setTodos] = useState<Array<Schema["Todo"]["type"]>>([]);
+
+  function deleteTodo(id: string) {
+    client.models.Todo.delete({ id })
+  }
+
+  async function createTodo() {
+    client.models.Todo.create({ content: window.prompt("Todo content") })
+  }
 
   // 認証状態をチェックする
   useEffect(() => {
+    try{
+      client.models.Todo.observeQuery().subscribe({
+        next: (data) => setTodos([...data.items]),
+      });        
+    } catch (attrError) {
+      console.error('dataの取得に失敗:', attrError);
+    }    
     checkAuthState();
   }, []);
 
@@ -327,6 +348,19 @@ function App() {
                           ))}
                         </List>
                         
+                        <Box mt={2}>
+                          <Typography variant="subtitle1" color="primary" gutterBottom>
+                           Data
+                          </Typography>
+                          <button onClick={createTodo}>+ new</button>
+                          <ul>
+                            {todos.map((todo) => (
+                              <li onClick={() => deleteTodo(todo.id)}
+                              key={todo.id}>{todo.content}</li>
+                            ))}
+                          </ul>
+                        </Box>
+
                         {tokens && (
                           <Box mt={2}>
                             <Typography variant="subtitle1" color="primary" gutterBottom>
