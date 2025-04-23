@@ -1,5 +1,5 @@
 import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
-import { sayHello } from "../functions/say-hello/resource"
+import { sendEmail } from "../functions/send-email/resource"
 
 
 /*== STEP 1 ===============================================================
@@ -14,14 +14,18 @@ const schema = a.schema({
     })
     .authorization((allow) => [allow.authenticated()]), // 認証済みユーザーのみアクセス許可
    
-  sayHello: a
+  sendEmail: a
     .query()
     .arguments({
       name: a.string(),
+      // オプショナルなフィールドはより単純な形で定義
+      email: a.string(),
+      subject: a.string(),
+      message: a.string()
     })
     .returns(a.string())
     .authorization(allow => [allow.authenticated()])
-    .handler(a.handler.function(sayHello)),   
+    .handler(a.handler.function(sendEmail)),   
   });
 
 export type Schema = ClientSchema<typeof schema>;

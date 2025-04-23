@@ -32,9 +32,11 @@ import CreateUser from './CreateUser';
 import { isAdmin, User, UserAttributes } from './isAdmin';
 
 import type { Schema } from "../amplify/data/resource";
-import { generateClient } from "aws-amplify/data";
+import { generateClient } from "aws-amplify/api";
+import { createCustomClient } from './main';
 
-const client = generateClient<Schema>();
+// IDトークンを使用するカスタムクライアントを作成
+// const client = generateClient<Schema>();
 
 // カスタムテーマの作成
 const theme = createTheme({
@@ -77,30 +79,114 @@ function App() {
   const [isUserAdmin, setIsUserAdmin] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<number>(0);
   const [todos, setTodos] = useState<Array<Schema["Todo"]["type"]>>([]);
+  const [client, setClient] = useState<any>(null);
 
   function deleteTodo(id: string) {
-    client.models.Todo.delete({ id })
+    if (client) {
+      client.models.Todo.delete({ id });
+    } else {
+      console.error('クライアントが初期化されていません');
+      alert('クライアントが初期化されていません。ログインを確認してください。');
+    }
   }
 
   async function createTodo() {
-    client.models.Todo.create({ content: window.prompt("Todo content") })
-
-    client.queries.sayHello({
-      name: "Amplify",
-    })
+    if (client) {
+      client.models.Todo.create({ content: window.prompt("Todo content") });
+    } else {
+      console.error('クライアントが初期化されていません');
+      alert('クライアントが初期化されていません。ログインを確認してください。');
+    }
+  }
+  
+  async function sendTestEmail() {
+    // クライアントの初期化確認
+    if (!client) {
+      console.error('クライアントが初期化されていません');
+      alert('クライアントが初期化されていません。ログインを確認してください。');
+      return;
+    }
+    
+    // メール送信のためのパラメータを取得
+    const name = window.prompt("送信先の名前") || "テスト";
+    const email = window.prompt("送信先のメールアドレス");
+    
+    if (!email) {
+      alert("メールアドレスは必須です");
+      return;
+    }
+    
+    const subject = window.prompt("件名", "テストメール") || "テストメール";
+    const message = window.prompt("メッセージ", `こんにちは、${name}さん！このメールはテスト送信です。`) || 
+                    `こんにちは、${name}さん！このメールはテスト送信です。`;
+    
+    try {
+      console.log("認証情報確認:", tokens);
+      
+      // IDトークンの存在を確認
+      if (!tokens || !tokens.idToken) {
+        console.warn("認証トークンが利用できません");
+        alert("認証情報が取得できていないため、Lambda関数には認証情報なしでリクエストが送信されます。");
+      }
+      
+      // sendEmail関数を呼び出してメール送信
+      const result = await client.queries.sendEmail({
+        name,
+        email,
+        subject,
+        message,
+        // IDトークンを使用するカスタムクライアントを使用するため、
+        // AppSyncはJWTからクレームを自動的に抽出し、Lambdaにユーザー情報を渡します
+      });
+      
+      alert(`メール送信結果: ${result}`);
+      
+      // デバッグ情報
+      console.log("メール送信完了");
+    } catch (error) {
+      console.error("メール送信エラー:", error);
+      alert(`エラー: ${error.message}`);
+    }
   }
 
   // 認証状態をチェックする
   useEffect(() => {
-    try{
-      client.models.Todo.observeQuery().subscribe({
-        next: (data) => setTodos([...data.items]),
-      });        
-    } catch (attrError) {
-      console.error('dataの取得に失敗:', attrError);
-    }    
     checkAuthState();
   }, []);
+  
+  // セッション取得後にカスタムクライアントを初期化
+  useEffect(() => {
+    if (isAuthenticated && tokens) {
+      const initClient = async () => {
+        try {
+          // IDトークンを使用するカスタムクライアントを作成
+          const customClient = await createCustomClient();
+          setClient(customClient);
+          
+          // Todoデータの購読を開始
+          customClient.models.Todo.observeQuery().subscribe({
+            next: (data) => setTodos([...data.items]),
+          });
+          
+          console.log('IDトークンを使用するカスタムクライアントを初期化しました');
+        } catch (error) {
+          console.error('カスタムクライアント初期化エラー:', error);
+          
+          // エラー時はデフォルトクライアントにフォールバック
+          const defaultClient = generateClient<Schema>();
+          setClient(defaultClient);
+          
+          defaultClient.models.Todo.observeQuery().subscribe({
+            next: (data) => setTodos([...data.items]),
+          });
+          
+          console.warn('デフォルトクライアント（アクセストークン）にフォールバックしました');
+        }
+      };
+      
+      initClient();
+    }
+  }, [isAuthenticated, tokens]);
 
   async function checkAuthState() {
     try {
@@ -356,7 +442,22 @@ function App() {
                           <Typography variant="subtitle1" color="primary" gutterBottom>
                            Data
                           </Typography>
-                          <button onClick={createTodo}>+ new</button>
+                          <Button 
+                            variant="outlined" 
+                            size="small" 
+                            onClick={createTodo}
+                            sx={{ mr: 1 }}
+                          >
+                            + Todoを追加
+                          </Button>
+                          <Button 
+                            variant="contained" 
+                            color="primary" 
+                            size="small" 
+                            onClick={sendTestEmail}
+                          >
+                            テストメール送信
+                          </Button>
                           <ul>
                             {todos.map((todo) => (
                               <li onClick={() => deleteTodo(todo.id)}
